@@ -38,7 +38,8 @@ class SunEnergyXTBat(AbstractBat):
 
     def _write(self, **kwargs) -> None:
         url = f"{self._base_url}/write"
-        resp = requests.get(url, params=kwargs, timeout=self._timeout)
+        payload = {"state": kwargs}
+        resp = requests.post(url, json=payload, timeout=self._timeout)
         resp.raise_for_status()
         log.debug("SunEnergyXT write %s → %s", kwargs, resp.text)
 
@@ -48,6 +49,8 @@ class SunEnergyXTBat(AbstractBat):
 
         soc = int(float(reported.get("SC", 0)))
         power = float(reported.get("PB", 0))
+        max_power = float(reported.get("IS", 0))
+
         imported, exported = self.sim_counter.sim_count(power)
 
         bat_state = BatState(
@@ -56,9 +59,10 @@ class SunEnergyXTBat(AbstractBat):
             imported=imported,
             exported=exported,
         )
+        bat_state.max_charge_power = max_power
+        bat_state.max_discharge_power = max_power
         self.store.set(bat_state)
-        log.debug("SunEnergyXT: SoC=%d%%, PB=%.0fW, GP=%.0fW",
-                  soc, power, float(reported.get("GP", 0)))
+        log.debug("SunEnergyXT: SoC=%d%%, PB=%.0fW, IS=%.0fW", soc, power, max_power)
 
     def set_power_limit(self, power_limit: Optional[int]) -> None:
         if power_limit is None:
