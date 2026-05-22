@@ -1,25 +1,31 @@
 #!/usr/bin/env python3
-"""SunEnergyXT 500 Series – openWB device module."""
+import logging
+from typing import Iterable
+from modules.common.abstract_device import DeviceDescriptor
+from modules.common.component_context import SingleComponentUpdateContext
+from modules.common.configurable_device import ComponentFactoryByType, ConfigurableDevice, MultiComponentUpdater
+from modules.devices.sunenergyxt.sunenergyxt.bat import SunEnergyXTBat
+from modules.devices.sunenergyxt.sunenergyxt.config import SunEnergyXT, SunEnergyXTBatSetup
 
-from dataclasses import dataclass, field
-from typing import Optional
-
-from modules.common.component_setup import ComponentSetup
-
-
-@dataclass
-class SunEnergyXTConfiguration:
-    ip_address: str = "192.168.1.100"
-    port: int = 80
-    # Poll interval in seconds (openWB controls the actual loop)
-    timeout: int = 5
+log = logging.getLogger(__name__)
 
 
-@dataclass
-class SunEnergyXT:
-    name: str = "SunEnergyXT 500 Series"
-    type: str = "sunenergyxt"
-    id: int = 0
-    configuration: SunEnergyXTConfiguration = field(
-        default_factory=SunEnergyXTConfiguration
+def create_device(device_config: SunEnergyXT):
+    def create_bat_component(component_config: SunEnergyXTBatSetup):
+        return SunEnergyXTBat(component_config, device_config=device_config)
+
+    def update_components(components: Iterable[SunEnergyXTBat]):
+        for component in components:
+            with SingleComponentUpdateContext(component.fault_state):
+                component.update()
+
+    return ConfigurableDevice(
+        device_config=device_config,
+        component_factory=ComponentFactoryByType(
+            bat=create_bat_component,
+        ),
+        component_updater=MultiComponentUpdater(update_components)
     )
+
+
+device_descriptor = DeviceDescriptor(configuration_factory=SunEnergyXT)
